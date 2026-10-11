@@ -42,3 +42,7 @@ def recommend_crops(farm: FarmData):
             }
         ]
     }
+
+from recommender import router as recommender_router
+app.include_router(recommender_router)
+
