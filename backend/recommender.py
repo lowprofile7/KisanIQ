@@ -20,7 +20,9 @@ SOIL_KEYWORDS = {
     "loamy": ["loam"],
     "alluvial": ["alluvial"],
 }
-
+# Provisional safeguard: paddy rice is water-intensive.
+# The CSV's crop-water figure may not represent total irrigation demand.
+FLOODED_CROPS = {"rice"}
 
 def _load_rows():
     with open(CSV_PATH, newline="", encoding="utf-8-sig") as f:
@@ -71,8 +73,12 @@ def _score_row(row, farm, personalized):
             f"Soil: its needs ({soil_text or 'not recorded'}) are not a clear match for {farm.soilType} soil."
         )
 
-    have = farm.waterAvailability.lower()
+    have = farm.waterAvailability.strip().lower()
     need = _water_need(row.get("water_requirement"))
+    flooded = (row.get("crop") or "").strip().lower() in FLOODED_CROPS
+
+    if flooded:
+        need = "high"
     if need is None or have not in LEVELS:
         reasons.append("Water: no usable water-need figure, so no water points were given.")
     else:
@@ -85,7 +91,11 @@ def _score_row(row, farm, personalized):
             reasons.append(f"Water: its {need} water need is one step from your {have} availability.")
         else:
             reasons.append(f"Water: its {need} water need does not match your {have} availability.")
-
+    if flooded:
+        reasons.append(
+            "Water: paddy rice is provisionally treated as high-water-demand; "
+            "the CSV crop-water figure may not include total irrigation needs."
+        )
     if personalized:
         lo, hi = _num(row.get("ph_min")), _num(row.get("ph_max"))
         if lo is None or hi is None:
