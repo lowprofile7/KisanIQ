@@ -42,6 +42,12 @@ class FarmDetails(BaseModel):
     ph: Optional[float] = None
 
 
+class RecommendationInputError(ValueError):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
 def _num(value):
     try:
         return float(str(value).strip())
@@ -59,20 +65,23 @@ def _water_need(text):
     return "moderate" if mid <= 1000 else "high"
 
 
-def _score_row(row, farm, personalized):
+def _score_row_details(row, farm, personalized):
     soil_w, water_w, ph_w = (30, 40, 30) if personalized else (40, 60, 0)
     score = 0.0
     reasons = []
+    reason_details = []
 
     soil_text = (row.get("soil_types") or "").strip()
     keywords = SOIL_KEYWORDS.get(farm.soilType.lower(), [])
     if any(k in soil_text.lower() for k in keywords):
         score += soil_w
         reasons.append(f"Soil: its needs ({soil_text}) fit {farm.soilType} soil.")
+        reason_details.append({"code": "soil.match", "params": {"soilText": soil_text, "soilType": farm.soilType}})
     else:
         reasons.append(
             f"Soil: its needs ({soil_text or 'not recorded'}) are not a clear match for {farm.soilType} soil."
         )
+        reason_details.append({"code": "soil.noMatch", "params": {"soilText": soil_text or "not recorded", "soilType": farm.soilType}})
 
     have = farm.waterAvailability.strip().lower()
     need = _water_need(row.get("water_requirement"))
@@ -82,34 +91,49 @@ def _score_row(row, farm, personalized):
         need = "high"
     if need is None or have not in LEVELS:
         reasons.append("Water: no usable water-need figure, so no water points were given.")
+        reason_details.append({"code": "water.unavailable", "params": {}})
     else:
         gap = abs(LEVELS.index(need) - LEVELS.index(have))
         if gap == 0:
             score += water_w
             reasons.append(f"Water: its {need} water need matches your {have} water availability.")
+            reason_details.append({"code": "water.match", "params": {"need": need, "available": have}})
         elif gap == 1:
             score += water_w * 0.5
             reasons.append(f"Water: its {need} water need is one step from your {have} availability.")
+            reason_details.append({"code": "water.near", "params": {"need": need, "available": have}})
         else:
             reasons.append(f"Water: its {need} water need does not match your {have} availability.")
+            reason_details.append({"code": "water.noMatch", "params": {"need": need, "available": have}})
     if flooded:
         reasons.append(
             "Water: paddy rice is provisionally treated as high-water-demand; "
             "the CSV crop-water figure may not include total irrigation needs."
         )
+        reason_details.append({"code": "water.riceCaveat", "params": {}})
     if personalized:
         lo, hi = _num(row.get("ph_min")), _num(row.get("ph_max"))
         if lo is None or hi is None:
             reasons.append("pH: no pH range recorded for this crop.")
+            reason_details.append({"code": "ph.unavailable", "params": {}})
         elif lo <= farm.ph <= hi:
             score += ph_w
             reasons.append(f"pH: your {farm.ph} is inside its preferred {lo}-{hi} range.")
+            reason_details.append({"code": "ph.match", "params": {"value": farm.ph, "min": lo, "max": hi}})
         elif lo - 0.5 <= farm.ph <= hi + 0.5:
             score += ph_w * 0.5
             reasons.append(f"pH: your {farm.ph} is just outside its preferred {lo}-{hi} range.")
+            reason_details.append({"code": "ph.near", "params": {"value": farm.ph, "min": lo, "max": hi}})
         else:
             reasons.append(f"pH: your {farm.ph} is outside its preferred {lo}-{hi} range.")
+            reason_details.append({"code": "ph.noMatch", "params": {"value": farm.ph, "min": lo, "max": hi}})
 
+    return score, reasons, reason_details
+
+
+def _score_row(row, farm, personalized):
+    """Keep the existing helper contract for callers and tests."""
+    score, reasons, _ = _score_row_details(row, farm, personalized)
     return score, reasons
 
 
@@ -118,13 +142,13 @@ def _recommend(farm, personalized):
     water = farm.waterAvailability.strip().lower()
 
     if season not in VALID_SEASONS:
-        raise ValueError(
+        raise RecommendationInputError("recommendation.invalidSeason",
             f"Unsupported season '{farm.season}'. "
             f"Choose from: {', '.join(sorted(VALID_SEASONS))}."
         )
 
     if water not in LEVELS:
-        raise ValueError(
+        raise RecommendationInputError("recommendation.invalidWater",
             "Unsupported water availability. Choose low, moderate, or high."
         )
     best = {}
@@ -133,13 +157,13 @@ def _recommend(farm, personalized):
         crop = (row.get("crop") or "").strip()
         if not crop or row_season not in (season, "whole year"):
             continue
-        score, reasons = _score_row(row, farm, personalized)
+        score, reasons, reason_details = _score_row_details(row, farm, personalized)
         if crop not in best or score > best[crop][0]:
-            best[crop] = (score, reasons, row)
+            best[crop] = (score, reasons, reason_details, row)
 
     ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:TOP_N]
     recommendations = []
-    for rank, (crop, (score, reasons, row)) in enumerate(ranked, start=1):
+    for rank, (crop, (score, reasons, reason_details, row)) in enumerate(ranked, start=1):
         sowing = (row.get("sowing_window") or "").strip()
         recommendations.append({
             "cropId": re.sub(r"[^a-z0-9]+", "-", crop.lower()).strip("-"),
@@ -148,7 +172,10 @@ def _recommend(farm, personalized):
             "score": int(round(score)),
             "description": f"Typical sowing window: {sowing}" if sowing
                            else f"{crop} for the {season.title()} season in Maharashtra.",
+            "descriptionCode": "crop.sowingWindow" if sowing else "crop.seasonDescription",
+            "descriptionParams": {"sowingWindow": sowing, "season": season, "region": "Maharashtra"},
             "reasons": reasons,
+            "reasonDetails": reason_details,
         })
 
     if recommendations:
@@ -159,6 +186,8 @@ def _recommend(farm, personalized):
     return {
         "mode": "soil-personalized" if personalized else "general",
         "message": message,
+        "messageCode": "recommendations.found" if recommendations else "recommendations.none",
+        "messageParams": {"count": len(recommendations), "season": season, "region": "Maharashtra"},
         "recommendations": recommendations,
     }
 
@@ -172,8 +201,8 @@ def health():
 def general_recommendations(farm: FarmDetails):
     try:
         return _recommend(farm, personalized=False)
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"message": str(exc)})
+    except RecommendationInputError as exc:
+        return JSONResponse(status_code=400, content={"code": exc.code, "message": str(exc)})
 
 
 @router.post("/crops/personalized")
@@ -181,10 +210,11 @@ def personalized_recommendations(farm: FarmDetails):
     if farm.ph is None:
         return JSONResponse(
             status_code=400,
-            content={"message": "Soil pH is required for personalized recommendations."},
+            content={"code": "recommendation.phRequired",
+                     "message": "Soil pH is required for personalized recommendations."},
         )
 
     try:
         return _recommend(farm, personalized=True)
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"message": str(exc)})
+    except RecommendationInputError as exc:
+        return JSONResponse(status_code=400, content={"code": exc.code, "message": str(exc)})

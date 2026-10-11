@@ -39,3 +39,8 @@ a {
 #root {
   min-height: 100vh;
 }
+
+:lang(hi),
+:lang(mr) {
+  font-family: "Noto Sans Devanagari", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}

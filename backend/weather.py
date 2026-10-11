@@ -30,7 +30,8 @@ def search_locations(location: str = Query("")):
     parts = [p.strip() for p in location.split(",") if p.strip()]
     if not parts:
         return JSONResponse(status_code=400,
-                            content={"message": "Enter a village or city name."})
+                            content={"code": "weather.locationRequired",
+                                     "message": "Enter a village or city name."})
     try:
         data = _get_json(GEOCODE_URL, {
             "name": parts[0], "count": 10, "language": "en",
@@ -38,6 +39,7 @@ def search_locations(location: str = Query("")):
         })
     except NETWORK_ERRORS:
         return JSONResponse(status_code=502, content={
+            "code": "weather.searchUnavailable",
             "message": "Location search is unavailable right now. Check the internet connection."})
 
     results = data.get("results") or []
@@ -67,4 +69,5 @@ def get_weather(latitude: float, longitude: float):
         })
     except NETWORK_ERRORS:
         return JSONResponse(status_code=502, content={
+            "code": "weather.unavailable",
             "message": "Weather is unavailable right now. Check the internet connection."})
