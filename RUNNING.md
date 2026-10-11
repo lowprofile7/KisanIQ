@@ -33,7 +33,7 @@ Open http://localhost:5173. Vite forwards `/api` calls to the backend on port 50
 - Crop data (`backend/data/crops.csv`, maintained by Shivansh) is provisional: rows are not yet verified.
 - Scores come from simple demonstration rules in `backend/recommender.py` (soil, water, season, pH),
   using Maharashtra rows only. They are not probabilities of crop success.
-- As of 11 Oct 2026 the weather routes (`/api/weather`) are not implemented in the backend.
+- Weather (/api/weather) uses the free Open-Meteo service, so the backend needs internet access.
 - `mobile/` (Flutter) is not part of the current demo.
 
 ## Team workflow
