@@ -29,7 +29,7 @@ export async function getCropRecommendations(farmDetails) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || 'Failed to get crop recommendations.');
+    throw new Error(data.code || data.message || 'Failed to get crop recommendations.');
   }
 
   return data;
@@ -54,7 +54,7 @@ export async function getPersonalizedRecommendations(farmDetails) {
 
   if (!response.ok) {
     throw new Error(
-      data.message || 'Failed to get personalized recommendations.'
+      data.code || data.message || 'Failed to get personalized recommendations.'
     );
   }
 
@@ -69,7 +69,7 @@ export async function searchWeatherLocations(location) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || "Unable to search locations.");
+    throw new Error(data.code || data.message || "Unable to search locations.");
   }
 
   return data.locations;
@@ -87,7 +87,7 @@ export async function getWeather(latitude, longitude) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || "Unable to fetch weather.");
+    throw new Error(data.code || data.message || "Unable to fetch weather.");
   }
 
   return data;

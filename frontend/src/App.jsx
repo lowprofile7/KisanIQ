@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import i18n, { LANGUAGE_STORAGE_KEY, supportedLanguages } from './i18n'
 import {
   searchWeatherLocations,
   getWeather,
@@ -20,15 +22,12 @@ import {
   TrendingUp,
   Menu,
   Bell,
-  Search,
   Wheat,
   LayoutDashboard,
   History,
   UserRound,
-  IndianRupee,
   Sun,
   CalendarDays,
-  Plus,
   ArrowRight,
   CircleHelp,
   X,
@@ -36,6 +35,7 @@ import {
 
 const crops = [
   {
+    id: 'soyabean',
     name: 'Soybean',
     localName: 'सोयाबीन',
     score: 94,
@@ -47,6 +47,7 @@ const crops = [
     description: 'Potentially suitable for your farm conditions.',
   },
   {
+    id: 'cotton-lint',
     name: 'Cotton',
     localName: 'कपास',
     score: 87,
@@ -58,6 +59,7 @@ const crops = [
     description: 'Consider water availability and growing costs.',
   },
   {
+    id: 'arhar-tur',
     name: 'Pigeon pea',
     localName: 'तूर',
     score: 82,
@@ -77,7 +79,25 @@ const navItems = [
   { name: 'Profile', icon: UserRound },
 ]
 
+const t = (key, options) => i18n.t(key, options)
+
+function translatedReason(reason) {
+  const params = { ...(reason.params || {}) }
+  if (params.soilType) params.soilType = t(`value.soil.${params.soilType}`)
+  if (params.soilText) params.soilText = t(params.soilText)
+  if (params.need) params.need = t(`value.water.${params.need}`)
+  if (params.available) params.available = t(`value.water.${params.available}`)
+  return t(reason.code, params)
+}
+
 function App() {
+  const { i18n: translationInstance } = useTranslation()
+  const [showLanguageWelcome, setShowLanguageWelcome] = useState(
+    !supportedLanguages.some(({ code }) => code === window.localStorage.getItem(LANGUAGE_STORAGE_KEY))
+  )
+  const [selectedLanguage, setSelectedLanguage] = useState(
+    translationInstance.resolvedLanguage || 'en'
+  )
   const [activeNav, setActiveNav] = useState('Home')
   const [showAllCrops, setShowAllCrops] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -85,6 +105,22 @@ function App() {
   const [recommendationResult, setRecommendationResult] = useState(null)
   const [recommendationLoading, setRecommendationLoading] = useState(false)
   const [recommendationError, setRecommendationError] = useState('')
+
+  useEffect(() => {
+    document.documentElement.lang = translationInstance.resolvedLanguage || 'en'
+  }, [translationInstance.resolvedLanguage])
+
+  async function changeLanguage(language) {
+    if (!supportedLanguages.some(({ code }) => code === language)) return
+    await translationInstance.changeLanguage(language)
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language)
+    setSelectedLanguage(language)
+  }
+
+  async function continueToDashboard() {
+    await changeLanguage(selectedLanguage)
+    setShowLanguageWelcome(false)
+  }
 
   async function handleRecommendationRequest(farmDetails, personalized = false) {
     setRecommendationLoading(true)
@@ -99,11 +135,21 @@ function App() {
       setRecommendationResult(result)
     } catch (error) {
       setRecommendationError(
-        error.message || 'Unable to get recommendations. Please try again.'
+        t(error.message || 'Unable to get recommendations. Please try again.')
       )
     } finally {
       setRecommendationLoading(false)
     }
+  }
+
+  if (showLanguageWelcome) {
+    return (
+      <LanguageWelcome
+        selectedLanguage={selectedLanguage}
+        onSelect={setSelectedLanguage}
+        onContinue={continueToDashboard}
+      />
+    )
   }
 
   return (
@@ -113,7 +159,7 @@ function App() {
           <button
             onClick={() => setActiveNav('Home')}
             className="flex items-center gap-3"
-            aria-label="Go to home"
+            aria-label={t('Go to home')}
           >
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#173F35] text-[#C5E86C]">
               <Sprout size={25} />
@@ -123,34 +169,39 @@ function App() {
                 Kisan<span className="text-[#4F7D58]">IQ</span>
               </h1>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#788078]">
-                Smarter farming
+                {t('Smarter farming')}
               </p>
             </div>
           </button>
 
           <div className="hidden items-center gap-2 rounded-full border border-[#E4E9DF] bg-white px-4 py-2.5 text-sm text-[#667267] md:flex">
             <MapPin size={16} className="text-[#4F7D58]" />
-            <span>Your farm location</span>
+            <span>{t('Your farm location')}</span>
             <ChevronRight size={15} />
           </div>
 
           <div className="flex items-center gap-3">
             <button
               className="hidden h-10 w-10 items-center justify-center rounded-full border border-[#E4E9DF] bg-white sm:flex"
-              aria-label="Notifications"
+              aria-label={t('Notifications')}
             >
               <Bell size={18} />
             </button>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E5EDCF] text-[#173F35] md:hidden"
-              aria-label="Toggle navigation"
+              aria-label={t('Toggle navigation')}
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-[#DDE8D7] font-bold text-[#173F35] sm:flex">
+              <button
+                type="button"
+                onClick={() => setActiveNav('Profile')}
+                aria-label={t('Profile')}
+                className="hidden h-10 w-10 items-center justify-center rounded-full bg-[#DDE8D7] font-bold text-[#173F35] sm:flex"
+              >
               F
-            </div>
+              </button>
           </div>
         </div>
 
@@ -166,7 +217,7 @@ function App() {
                 className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-[#F2F5EC]"
               >
                 <item.icon size={18} />
-                {item.name}
+                {t(item.name)}
               </button>
             ))}
           </div>
@@ -188,14 +239,16 @@ function App() {
               recommendationResult={recommendationResult}
               recommendationLoading={recommendationLoading}
               recommendationError={recommendationError}
+              selectedLanguage={selectedLanguage}
+              onLanguageChange={changeLanguage}
           />
         )}
       </main>
 
       <footer className="mx-auto max-w-[1440px] px-5 pb-28 pt-4 text-center text-xs text-[#788078] sm:px-8 lg:px-12">
-        KisanIQ · Helping farmers make more informed decisions.
+        {t('KisanIQ · Helping farmers make more informed decisions.')}
         <br />
-        Demonstration interface — sample data only.
+        {t('Demonstration interface — sample data only.')}
       </footer>
 
       <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#E4E9DF] bg-white/95 px-2 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
@@ -215,13 +268,34 @@ function App() {
                 }`}
               >
                 <Icon size={20} />
-                {item.name}
+                {t(item.name)}
               </button>
             )
           })}
         </div>
       </nav>
     </div>
+  )
+}
+
+function LanguageWelcome({ selectedLanguage, onSelect, onContinue }) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F7F7F0] px-5 py-10 text-[#202923]">
+      <section className="w-full max-w-xl rounded-[28px] border border-[#E4E9DF] bg-white p-6 text-center shadow-sm sm:p-10">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#173F35] text-[#C5E86C]"><Sprout size={34} /></div>
+        <h1 className="text-3xl font-extrabold tracking-tight">Kisan<span className="text-[#4F7D58]">IQ</span></h1>
+        <p className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-[#788078]">{t('Smarter farming')}</p>
+        <h2 className="mt-8 text-2xl font-bold tracking-tight sm:text-3xl">{t('Welcome to')} KisanIQ</h2>
+        <p className="mt-3 text-sm leading-6 text-[#788078]">{t('Choose your preferred language to continue.')}</p>
+        <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          {supportedLanguages.map((language) => {
+            const selected = selectedLanguage === language.code
+            return <button key={language.code} type="button" aria-pressed={selected} onClick={() => onSelect(language.code)} className={`min-h-14 rounded-xl border px-4 py-3 text-base font-semibold transition ${selected ? 'border-[#4F7D58] bg-[#EDF3E5] text-[#173F35] ring-2 ring-[#C5E86C]' : 'border-[#E4E9DF] bg-white text-[#465348] hover:border-[#B6CDAA] hover:bg-[#F7F7F0]'}`}>{language.nativeLabel}{language.code !== 'en' && <span className="sr-only"> ({language.label})</span>}</button>
+          })}
+        </div>
+        <button type="button" onClick={onContinue} className="mt-7 w-full rounded-xl bg-[#173F35] px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#285B4B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F7D58] sm:w-auto sm:min-w-48">{t('Continue')}<ArrowRight className="ml-2 inline" size={18} /></button>
+      </section>
+    </main>
   )
 }
 
@@ -232,16 +306,15 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#DCE7D4] bg-white px-3 py-1.5 text-xs font-semibold text-[#4F7D58]">
             <span className="h-2 w-2 rounded-full bg-[#82A96A]" />
-            YOUR FARM, YOUR FUTURE
+            {t('YOUR FARM, YOUR FUTURE')}
           </div>
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
-            Good day, farmer.
+            {t('Good day, farmer.')}
             <br />
-            <span className="text-[#4F7D58]">Let's grow smarter.</span>
+            <span className="text-[#4F7D58]">{t("Let's grow smarter.")}</span>
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-6 text-[#788078] sm:text-base">
-            Get personalized crop suggestions and make more informed
-            farming decisions, one season at a time.
+            {t('Get personalized crop suggestions and make more informed farming decisions, one season at a time.')}
           </p>
         </div>
 
@@ -250,7 +323,7 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
           className="flex w-fit items-center gap-2 rounded-xl border border-[#DCE4D7] bg-white px-4 py-3 text-sm font-semibold transition hover:border-[#4F7D58]"
         >
           <MapPin size={17} className="text-[#4F7D58]" />
-          Set farm location
+          {t('Set farm location')}
           <ArrowUpRight size={16} />
         </button>
       </section>
@@ -259,25 +332,25 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
         <WeatherCard />
         <OverviewCard
           icon={Droplets}
-          label="Water availability"
-          value="Not set"
-          detail="Add your irrigation details"
+          label={t('Water availability')}
+          value={t('Not set')}
+          detail={t('Add your irrigation details')}
           iconBg="bg-[#E4EDF7]"
           iconColor="text-[#4778A6]"
         />
         <OverviewCard
           icon={FlaskConical}
-          label="Soil health"
-          value="Not analysed"
-          detail="Upload your soil test report"
+          label={t('Soil health')}
+          value={t('Not analysed')}
+          detail={t('Upload your soil test report')}
           iconBg="bg-[#F2E8D8]"
           iconColor="text-[#9A7144]"
         />
         <OverviewCard
           icon={CalendarDays}
-          label="Growing season"
-          value="Location needed"
-          detail="Personalize your crop calendar"
+          label={t('Growing season')}
+          value={t('Location needed')}
+          detail={t('Personalize your crop calendar')}
           iconBg="bg-[#E5EDCF]"
           iconColor="text-[#4F7D58]"
         />
@@ -288,24 +361,23 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
           <div className="px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12">
             <div className="mb-5 flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-[#D5E8BD]">
               <Sprout size={15} />
-              PERSONALIZED CROP PLANNING
+              {t('PERSONALIZED CROP PLANNING')}
             </div>
             <h3 className="max-w-xl text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-              The right crop can change your season.
+              {t('The right crop can change your season.')}
             </h3>
             <p className="mt-4 max-w-lg text-sm leading-6 text-white/70 sm:text-base">
-              Start with your soil, local weather, water supply and
-              market information. Get crop options tailored to your farm.
+              {t('Start with your soil, local weather, water supply and market information. Get crop options tailored to your farm.')}
             </p>
             <button
               onClick={() => setActiveNav('Recommendations')}
               className="mt-7 inline-flex items-center gap-3 rounded-xl bg-[#C5E86C] px-5 py-3.5 text-sm font-bold text-[#173F35] transition hover:bg-[#D4F38A]"
             >
-              Find recommended crops
+              {t('Find recommended crops')}
               <ArrowRight size={18} />
             </button>
             <p className="mt-3 text-xs text-white/50">
-              Recommendations require your farm details.
+              {t('Recommendations require your farm details.')}
             </p>
           </div>
 
@@ -332,15 +404,15 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
         <div>
           <div className="mb-5 flex items-end justify-between gap-4">
             <SectionTitle
-              eyebrow="MAKE INFORMED CHOICES"
-              title="Explore crop options"
-              subtitle="Compare suitability, market information and farming costs."
+              eyebrow={t('MAKE INFORMED CHOICES')}
+              title={t('Explore crop options')}
+              subtitle={t('Compare suitability, market information and farming costs.')}
             />
             <button
               onClick={() => setShowAllCrops(!showAllCrops)}
               className="mb-1 flex shrink-0 items-center gap-1 text-sm font-semibold text-[#4F7D58]"
             >
-              {showAllCrops ? 'Show less' : 'View all'}
+              {showAllCrops ? t('Show less') : t('View all')}
               <ChevronRight size={17} />
             </button>
           </div>
@@ -351,34 +423,33 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
             ))}
           </div>
           <p className="mt-3 text-xs leading-5 text-[#788078]">
-            Example crops and prices are illustrative only. They are not
-            verified local market quotations or personalized agronomic advice.
+            {t('Example crops and prices are illustrative only. They are not verified local market quotations or personalized agronomic advice.')}
           </p>
         </div>
 
         <div>
           <SectionTitle
-            eyebrow="YOUR NEXT STEPS"
-            title="Build your farm profile"
-            subtitle="A little information helps make recommendations more relevant."
+            eyebrow={t('YOUR NEXT STEPS')}
+            title={t('Build your farm profile')}
+            subtitle={t('A little information helps make recommendations more relevant.')}
           />
           <div className="mt-5 space-y-3">
             <QuickAction
               icon={FlaskConical}
-              title="Add soil information"
-              description="Enter soil values or upload a report"
+              title={t('Add soil information')}
+              description={t('Enter soil values or upload a report')}
               onClick={() => setActiveNav('Soil Analysis')}
             />
             <QuickAction
               icon={MessageCircle}
-              title="Ask KisanIQ"
-              description="Explore farming questions"
+              title={t('Ask KisanIQ')}
+              description={t('Explore farming questions')}
               onClick={() => setActiveNav('Ask KisanIQ')}
             />
             <QuickAction
               icon={History}
-              title="Previous recommendations"
-              description="Review your saved decisions"
+              title={t('Previous recommendations')}
+              description={t('Review your saved decisions')}
               onClick={() => setActiveNav('History')}
             />
           </div>
@@ -391,13 +462,9 @@ function HomePage({ showAllCrops, setShowAllCrops, setActiveNav }) {
             <CircleHelp size={22} />
           </div>
           <div>
-            <h3 className="font-bold">Why farm details matter</h3>
+            <h3 className="font-bold">{t('Why farm details matter')}</h3>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-[#788078]">
-              Soil properties, planting dates, water availability, local
-              weather and verified market prices all affect a crop's
-              suitability and potential profitability. KisanIQ should
-              consider these factors together rather than rank crops on
-              price alone.
+              {t("Soil properties, planting dates, water availability, local weather and verified market prices all affect a crop's suitability and potential profitability. KisanIQ should consider these factors together rather than rank crops on price alone.")}
             </p>
           </div>
         </div>
@@ -420,7 +487,7 @@ function WeatherCard() {
     event.preventDefault()
 
     if (query.trim().length < 2) {
-      setError('Enter a village, town, or city name.')
+      setError(t('Enter a village, town, or city name.'))
       return
     }
 
@@ -435,10 +502,10 @@ function WeatherCard() {
       setLocations(results)
 
       if (results.length === 0) {
-        setError('No locations found. Try another name.')
+        setError(t('No locations found. Try another name.'))
       }
     } catch (err) {
-      setError(err.message || 'Unable to search locations.')
+      setError(t(err.message || 'Unable to search locations.'))
     } finally {
       setLoadingSearch(false)
     }
@@ -459,30 +526,30 @@ function WeatherCard() {
 
       setWeather(result)
     } catch (err) {
-      setError(err.message || 'Unable to load weather.')
+      setError(t(err.message || 'Unable to load weather.'))
     } finally {
       setLoadingWeather(false)
     }
   }
 
   function getWeatherDescription(code) {
-    if (code === 0) return 'Clear sky'
-    if ([1, 2].includes(code)) return 'Mostly clear'
-    if (code === 3) return 'Cloudy'
-    if ([45, 48].includes(code)) return 'Foggy'
-    if ([51, 53, 55, 56, 57].includes(code)) return 'Drizzle'
-    if ([61, 63, 65, 66, 67].includes(code)) return 'Rain'
-    if ([71, 73, 75, 77].includes(code)) return 'Snow'
-    if ([80, 81, 82].includes(code)) return 'Rain showers'
-    if ([85, 86].includes(code)) return 'Snow showers'
-    if ([95, 96, 99].includes(code)) return 'Thunderstorm'
+    if (code === 0) return t('Clear sky')
+    if ([1, 2].includes(code)) return t('Mostly clear')
+    if (code === 3) return t('Cloudy')
+    if ([45, 48].includes(code)) return t('Foggy')
+    if ([51, 53, 55, 56, 57].includes(code)) return t('Drizzle')
+    if ([61, 63, 65, 66, 67].includes(code)) return t('Rain')
+    if ([71, 73, 75, 77].includes(code)) return t('Snow')
+    if ([80, 81, 82].includes(code)) return t('Rain showers')
+    if ([85, 86].includes(code)) return t('Snow showers')
+    if ([95, 96, 99].includes(code)) return t('Thunderstorm')
 
-    return 'Weather conditions unavailable'
+    return t('Weather conditions unavailable')
   }
 
   function formatDay(date) {
     return new Date(`${date}T12:00:00`).toLocaleDateString(
-      'en-IN',
+      i18n.resolvedLanguage === 'hi' ? 'hi-IN' : i18n.resolvedLanguage === 'mr' ? 'mr-IN' : 'en-IN',
       { weekday: 'short', day: 'numeric', month: 'short' }
     )
   }
@@ -496,11 +563,11 @@ function WeatherCard() {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-sm font-medium text-[#788078]">
-            Local weather
+            {t('Local weather')}
           </span>
 
           <h3 className="mt-1 text-lg font-bold text-[#244C36]">
-            Farm weather
+            {t('Farm weather')}
           </h3>
         </div>
 
@@ -515,7 +582,7 @@ function WeatherCard() {
           htmlFor="weather-location"
           className="mb-2 block text-sm font-medium text-[#465348]"
         >
-          Enter your village or city
+          {t('Enter your village or city')}
         </label>
 
         <div className="flex gap-2">
@@ -524,7 +591,7 @@ function WeatherCard() {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="e.g. Nagpur, Maharashtra"
+            placeholder={t('e.g. Nagpur, Maharashtra')}
             className="min-w-0 flex-1 rounded-xl border border-[#E4E9DF] bg-[#FAFBF8] px-3 py-2 text-sm outline-none focus:border-[#477653]"
           />
 
@@ -533,7 +600,7 @@ function WeatherCard() {
             disabled={loadingSearch}
             className="rounded-xl bg-[#244C36] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#315F43] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loadingSearch ? 'Searching...' : 'Search'}
+            {loadingSearch ? t('Searching...') : t('Search')}
           </button>
         </div>
       </form>
@@ -542,7 +609,7 @@ function WeatherCard() {
       {locations.length > 0 && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-[#788078]">
-            Select your location:
+            {t('Select your location:')}
           </p>
 
           {locations.map((location, index) => (
@@ -590,7 +657,7 @@ function WeatherCard() {
       {/* Loading */}
       {loadingWeather && (
         <div className="mt-5 rounded-xl bg-[#F3F7F0] p-4 text-sm text-[#477653]">
-          Fetching weather for your location...
+          {t('Fetching weather for your location...')}
         </div>
       )}
 
@@ -623,13 +690,13 @@ function WeatherCard() {
             </div>
 
             <p className="mt-3 text-xs text-[#788078]">
-              Feels like {Math.round(current.apparent_temperature)}°C
+              {t('Feels like {{temperature}}°C', { temperature: Math.round(current.apparent_temperature) })}
             </p>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-[#788078]">
-                  Humidity
+                  {t('Humidity')}
                 </p>
 
                 <p className="mt-1 font-semibold text-[#244C36]">
@@ -639,7 +706,7 @@ function WeatherCard() {
 
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-[#788078]">
-                  Wind speed
+                  {t('Wind speed')}
                 </p>
 
                 <p className="mt-1 font-semibold text-[#244C36]">
@@ -649,7 +716,7 @@ function WeatherCard() {
 
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-[#788078]">
-                  Current precipitation
+                  {t('Current precipitation')}
                 </p>
 
                 <p className="mt-1 font-semibold text-[#244C36]">
@@ -659,11 +726,11 @@ function WeatherCard() {
 
               <div className="rounded-lg bg-white p-3">
                 <p className="text-xs text-[#788078]">
-                  Day / Night
+                  {t('Day / Night')}
                 </p>
 
                 <p className="mt-1 font-semibold text-[#244C36]">
-                  {current.is_day ? 'Daytime' : 'Nighttime'}
+                  {current.is_day ? t('Daytime') : t('Nighttime')}
                 </p>
               </div>
             </div>
@@ -673,7 +740,7 @@ function WeatherCard() {
           {daily && (
             <div className="mt-5">
               <h4 className="mb-3 font-semibold text-[#244C36]">
-                5-day forecast
+                {t('5-day forecast')}
               </h4>
 
               <div className="space-y-2">
@@ -702,7 +769,7 @@ function WeatherCard() {
                       </p>
 
                       <p className="mt-1 text-xs text-[#788078]">
-                        Rain: {daily.precipitation_sum[index]} mm
+                        {t('Rain: {{amount}} mm', { amount: daily.precipitation_sum[index] })}
                       </p>
                     </div>
                   </div>
@@ -713,7 +780,7 @@ function WeatherCard() {
 
           {/* Attribution */}
           <p className="mt-4 text-xs text-[#788078]">
-            Forecast data: Open-Meteo. Weather conditions can change.
+            {t('Forecast data: Open-Meteo. Weather conditions can change.')}
           </p>
 
           <button
@@ -726,7 +793,7 @@ function WeatherCard() {
             }}
             className="mt-3 text-sm font-medium text-[#477653] hover:underline"
           >
-            Change location
+            {t('Change location')}
           </button>
         </div>
       )}
@@ -735,7 +802,7 @@ function WeatherCard() {
       {!current && !loadingWeather && !error && (
         <div className="mt-4 flex items-center gap-2 border-t border-[#EEF0E8] pt-3 text-xs text-[#788078]">
           <MapPin size={14} />
-          Search for your farm location to view its weather.
+          {t('Search for your farm location to view its weather.')}
         </div>
       )}
     </div>
@@ -783,18 +850,18 @@ function CropCard({ crop }) {
             <Icon size={25} />
           </div>
           <div>
-            <h4 className="font-bold">{crop.name}</h4>
-            <p className="text-xs text-[#788078]">{crop.localName}</p>
+            <h4 className="font-bold">{t(`crop.${crop.id}`, { defaultValue: crop.name })}</h4>
+            <p className="text-xs text-[#788078]">{t(`localCrop.${crop.id}`, { defaultValue: crop.localName })}</p>
           </div>
         </div>
         <span className="rounded-full bg-[#EDF3E5] px-2.5 py-1 text-[10px] font-bold text-[#4F7D58]">
-          Demo
+          {t('Demo')}
         </span>
       </div>
 
       <div className="mt-5 rounded-xl bg-[#F7F7F0] p-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-[#788078]">Example suitability</span>
+          <span className="text-xs text-[#788078]">{t('Example suitability')}</span>
           <span className="text-sm font-bold text-[#365A3F]">{crop.score}%</span>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#E4E9DF]">
@@ -807,18 +874,18 @@ function CropCard({ crop }) {
 
       <div className="mt-4 flex items-end justify-between gap-2">
         <div>
-          <p className="text-xs text-[#788078]">Example market price</p>
+          <p className="text-xs text-[#788078]">{t('Example market price')}</p>
           <p className="mt-1 text-lg font-bold">{crop.price}</p>
-          <p className="text-[10px] text-[#788078]">{crop.unit}</p>
+          <p className="text-[10px] text-[#788078]">{t(crop.unit)}</p>
         </div>
         <div className="flex items-center gap-1 text-xs font-semibold text-[#4F7D58]">
           <TrendingUp size={15} />
-          Illustrative
+          {t('Illustrative')}
         </div>
       </div>
 
       <p className="mt-3 border-t border-[#EEF0E8] pt-3 text-xs leading-5 text-[#788078]">
-        {crop.description}
+        {t(crop.description)}
       </p>
     </article>
   )
@@ -852,6 +919,8 @@ function PlaceholderPage({
   recommendationResult,
   recommendationLoading,
   recommendationError,
+  selectedLanguage,
+  onLanguageChange,
 }) {
   const details = {
     Recommendations: {
@@ -905,8 +974,8 @@ function PlaceholderPage({
       <RecommendationWorkspace
         key="general"
         personalized={false}
-        title="Find suitable crop options"
-        description={page.description}
+        title={t('Find suitable crop options')}
+        description={t(page.description)}
         onRecommend={onRecommend}
         result={recommendationResult}
         loading={recommendationLoading}
@@ -922,14 +991,34 @@ function PlaceholderPage({
       <RecommendationWorkspace
         key="personalized"
         personalized={true}
-        title="Personalize recommendations with soil pH"
-        description={page.description}
+        title={t('Personalize recommendations with soil pH')}
+        description={t(page.description)}
         onRecommend={onRecommend}
         result={recommendationResult}
         loading={recommendationLoading}
         error={recommendationError}
         onBack={() => setActiveNav('Home')}
       />
+    )
+  }
+
+  if (activeNav === 'Profile') {
+    return (
+      <section className="mx-auto max-w-2xl py-10 sm:py-16">
+        <div className="rounded-[28px] border border-[#E4E9DF] bg-white p-7 text-center shadow-sm sm:p-12">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#EDF3E5] text-[#4F7D58]"><Icon size={30} /></div>
+          <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-[#4F7D58]">{t('KisanIQ workspace')}</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight">{t(page.title)}</h2>
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-[#788078]">{t(page.description)}</p>
+          <div className="mx-auto mt-7 max-w-sm text-left">
+            <label htmlFor="profile-language" className="mb-2 block text-sm font-semibold">{t('Language')}</label>
+            <select id="profile-language" value={selectedLanguage} onChange={(event) => onLanguageChange(event.target.value)} className="w-full rounded-xl border border-[#DCE4D7] bg-white px-4 py-3 text-sm">
+              {supportedLanguages.map((language) => <option key={language.code} value={language.code}>{language.nativeLabel} ({language.label})</option>)}
+            </select>
+          </div>
+          <button onClick={() => setActiveNav(page.target)} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#173F35] px-5 py-3 font-semibold text-white transition hover:bg-[#285B4B]">{t(page.button)}<ArrowRight size={17} /></button>
+        </div>
+      </section>
     )
   }
 
@@ -942,22 +1031,22 @@ function PlaceholderPage({
         </div>
 
         <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-[#4F7D58]">
-          KisanIQ workspace
+          {t('KisanIQ workspace')}
         </p>
 
         <h2 className="mt-3 text-3xl font-bold tracking-tight">
-          {page.title}
+              {t(page.title)}
         </h2>
 
         <p className="mx-auto mt-4 max-w-lg text-sm leading-7 text-[#788078]">
-          {page.description}
+          {t(page.description)}
         </p>
 
         <button
           onClick={() => setActiveNav(page.target)}
           className="mt-7 inline-flex items-center gap-2 rounded-xl bg-[#173F35] px-5 py-3 font-semibold text-white transition hover:bg-[#285B4B]"
         >
-          {page.button}
+          {t(page.button)}
           <ArrowRight size={17} />
         </button>
       </div>
@@ -1009,7 +1098,7 @@ function RecommendationWorkspace({
           onClick={onBack}
           className="mb-5 text-sm font-semibold text-[#4F7D58]"
         >
-          ← Back to dashboard
+          {t('← Back to dashboard')}
         </button>
 
         <div className="flex items-center gap-3">
@@ -1037,10 +1126,10 @@ function RecommendationWorkspace({
         onSubmit={handleSubmit}
         className="rounded-2xl border border-[#E4E9DF] bg-white p-5 shadow-sm sm:p-8"
       >
-        <h3 className="text-lg font-bold">Enter your farm details</h3>
+        <h3 className="text-lg font-bold">{t('Enter your farm details')}</h3>
 
         <p className="mt-1 text-sm text-[#788078]">
-          These inputs will be sent to your KisanIQ backend.
+          {t('These inputs will be sent to your KisanIQ backend.')}
         </p>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
@@ -1049,7 +1138,7 @@ function RecommendationWorkspace({
               htmlFor="soilType"
               className="mb-2 block text-sm font-semibold"
             >
-              Soil type
+              {t('Soil type')}
             </label>
 
             <select
@@ -1058,9 +1147,9 @@ function RecommendationWorkspace({
               onChange={(event) => setSoilType(event.target.value)}
               className="w-full rounded-xl border border-[#DCE4D7] bg-white px-4 py-3 text-sm"
             >
-              <option value="black">Black soil</option>
-              <option value="loamy">Loamy soil</option>
-              <option value="alluvial">Alluvial soil</option>
+              <option value="black">{t('Black soil')}</option>
+              <option value="loamy">{t('Loamy soil')}</option>
+              <option value="alluvial">{t('Alluvial soil')}</option>
             </select>
           </div>
 
@@ -1069,7 +1158,7 @@ function RecommendationWorkspace({
               htmlFor="season"
               className="mb-2 block text-sm font-semibold"
             >
-              Growing season
+              {t('Growing season')}
             </label>
 
             <select
@@ -1078,8 +1167,8 @@ function RecommendationWorkspace({
               onChange={(event) => setSeason(event.target.value)}
               className="w-full rounded-xl border border-[#DCE4D7] bg-white px-4 py-3 text-sm"
             >
-              <option value="kharif">Kharif — monsoon season</option>
-              <option value="rabi">Rabi — winter season</option>
+              <option value="kharif">{t('Kharif — monsoon season')}</option>
+              <option value="rabi">{t('Rabi — winter season')}</option>
             </select>
           </div>
 
@@ -1088,7 +1177,7 @@ function RecommendationWorkspace({
               htmlFor="waterAvailability"
               className="mb-2 block text-sm font-semibold"
             >
-              Water availability
+              {t('Water availability')}
             </label>
 
             <select
@@ -1099,9 +1188,9 @@ function RecommendationWorkspace({
               }
               className="w-full rounded-xl border border-[#DCE4D7] bg-white px-4 py-3 text-sm"
             >
-              <option value="low">Low</option>
-              <option value="moderate">Moderate</option>
-              <option value="high">High</option>
+              <option value="low">{t('Low')}</option>
+              <option value="moderate">{t('Moderate')}</option>
+              <option value="high">{t('High')}</option>
             </select>
           </div>
 
@@ -1110,7 +1199,7 @@ function RecommendationWorkspace({
               htmlFor="farmSizeAcres"
               className="mb-2 block text-sm font-semibold"
             >
-              Farm size (acres)
+              {t('Farm size (acres)')}
             </label>
 
             <input
@@ -1120,6 +1209,8 @@ function RecommendationWorkspace({
               max="100000"
               step="any"
               required
+              onInvalid={(event) => event.currentTarget.setCustomValidity(t('Please enter a valid value.'))}
+              onInput={(event) => event.currentTarget.setCustomValidity('')}
               value={farmSizeAcres}
               onChange={(event) => setFarmSizeAcres(event.target.value)}
               className="w-full rounded-xl border border-[#DCE4D7] px-4 py-3 text-sm"
@@ -1132,7 +1223,7 @@ function RecommendationWorkspace({
                 htmlFor="soilPh"
                 className="mb-2 block text-sm font-semibold"
               >
-                Soil pH (0–14)
+                {t('Soil pH (0–14)')}
               </label>
 
               <input
@@ -1142,14 +1233,15 @@ function RecommendationWorkspace({
                 max="14"
                 step="0.1"
                 required
+                onInvalid={(event) => event.currentTarget.setCustomValidity(t('Please enter a valid value.'))}
+                onInput={(event) => event.currentTarget.setCustomValidity('')}
                 value={ph}
                 onChange={(event) => setPh(event.target.value)}
                 className="w-full rounded-xl border border-[#DCE4D7] px-4 py-3 text-sm"
               />
 
               <p className="mt-2 text-xs leading-5 text-[#788078]">
-                Enter the value from your soil test report. The default
-                is only an example; replace it with your actual result.
+                {t('Enter the value from your soil test report. The default is only an example; replace it with your actual result.')}
               </p>
             </div>
           )}
@@ -1157,12 +1249,9 @@ function RecommendationWorkspace({
 
         <div className="mt-6 rounded-xl bg-[#F7F7F0] p-4 text-xs leading-5 text-[#788078]">
           <strong className="text-[#365A3F]">
-            Demonstration mode:
+            {t('Demonstration mode:')}
           </strong>{' '}
-          These initial recommendations use sample crop profiles and
-          simple scoring rules. They do not yet incorporate live
-          weather, verified market prices or a complete agricultural
-          suitability model.
+          {t('These initial recommendations use sample crop profiles and simple scoring rules. They do not yet incorporate live weather, verified market prices or a complete agricultural suitability model.')}
         </div>
 
         {error && (
@@ -1170,7 +1259,7 @@ function RecommendationWorkspace({
             role="alert"
             className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
           >
-            {error}
+            {t(error)}
           </div>
         )}
 
@@ -1180,10 +1269,10 @@ function RecommendationWorkspace({
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#173F35] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#285B4B] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {loading
-            ? 'Getting recommendations...'
+            ? t('Getting recommendations...')
             : personalized
-              ? 'Analyse soil and recommend crops'
-              : 'Find recommended crops'}
+              ? t('Analyse soil and recommend crops')
+              : t('Find recommended crops')}
 
           {!loading && <ArrowRight size={18} />}
         </button>
@@ -1193,15 +1282,15 @@ function RecommendationWorkspace({
         <section className="mt-8">
           <div className="mb-4">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#4F7D58]">
-              Backend response
+              {t('Backend response')}
             </p>
 
             <h3 className="mt-2 text-2xl font-bold">
-              Crop options
+              {t('Crop options')}
             </h3>
 
             <p className="mt-2 text-sm leading-6 text-[#788078]">
-              {result.message}
+              {result.messageCode ? t(result.messageCode, { ...result.messageParams, season: t(`value.season.${result.messageParams.season}`) }) : result.message}
             </p>
           </div>
 
@@ -1214,11 +1303,11 @@ function RecommendationWorkspace({
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold text-[#4F7D58]">
-                      RANK #{crop.rank}
+                      {t('RANK #{{rank}}', { rank: crop.rank })}
                     </p>
 
                     <h4 className="mt-1 text-lg font-bold">
-                      {crop.cropName}
+                      {t(`crop.${crop.cropId}`, { defaultValue: crop.cropName })}
                     </h4>
                   </div>
 
@@ -1227,28 +1316,28 @@ function RecommendationWorkspace({
                       {crop.score}
                     </p>
                     <p className="text-[10px] text-[#788078]">
-                      Demo score / 100
+                      {t('Demo score / 100')}
                     </p>
                   </div>
                 </div>
 
                 <p className="mt-3 text-sm leading-6 text-[#788078]">
-                  {crop.description}
+                  {crop.descriptionCode ? t(crop.descriptionCode, { ...crop.descriptionParams, season: t(`value.season.${crop.descriptionParams.season}`), sowingWindow: t(crop.descriptionParams.sowingWindow), cropName: t(`crop.${crop.cropId}`, { defaultValue: crop.cropName }) }) : crop.description}
                 </p>
 
                 <div className="mt-4 border-t border-[#EEF0E8] pt-4">
                   <h5 className="text-sm font-bold">
-                    Why this crop received this score
+                    {t('Why this crop received this score')}
                   </h5>
 
                   <ul className="mt-2 space-y-2">
-                    {crop.reasons.map((reason, index) => (
+                    {(crop.reasonDetails || crop.reasons.map((text) => ({ text }))).map((reason, index) => (
                       <li
                         key={index}
                         className="flex gap-2 text-sm leading-5 text-[#667267]"
                       >
                         <span className="text-[#4F7D58]">•</span>
-                        <span>{reason}</span>
+                        <span>{reason.code ? translatedReason(reason) : reason.text}</span>
                       </li>
                     ))}
                   </ul>
@@ -1258,9 +1347,7 @@ function RecommendationWorkspace({
           </div>
 
           <p className="mt-4 text-xs leading-5 text-[#788078]">
-            These scores are produced by demonstration rules. They
-            are not probabilities of crop success and should not be
-            used alone to make planting decisions.
+            {t('These scores are produced by demonstration rules. They are not probabilities of crop success and should not be used alone to make planting decisions.')}
           </p>
         </section>
       )}
