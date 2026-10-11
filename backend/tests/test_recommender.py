@@ -1,5 +1,8 @@
-
+from fastapi.testclient import TestClient
+from main import app
 from recommender import _score_row, FarmDetails
+
+client = TestClient(app)
 
 
 def test_rice_is_treated_as_high_water_demand():
@@ -52,3 +55,31 @@ def test_rice_gets_partial_water_points_for_moderate_water():
     assert score == 70
     assert any("high-water-demand" in reason for reason in reasons)
     assert any("one step from your moderate availability" in reason for reason in reasons)
+
+
+def test_invalid_season_returns_400():
+    response = client.post(
+        "/api/crops/recommendations",
+        json={
+            "soilType": "black",
+            "season": "monsoon",
+            "waterAvailability": "moderate",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Unsupported season" in response.json()["message"]
+
+
+def test_invalid_water_availability_returns_400():
+    response = client.post(
+        "/api/crops/recommendations",
+        json={
+            "soilType": "black",
+            "season": "kharif",
+            "waterAvailability": "extreme",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Unsupported water availability" in response.json()["message"]

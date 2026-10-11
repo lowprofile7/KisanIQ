@@ -15,6 +15,7 @@ CSV_PATH = Path(__file__).parent / "data" / "crops.csv"
 REGION = "maharashtra"
 TOP_N = 5
 LEVELS = ["low", "moderate", "high"]
+VALID_SEASONS = {"autumn", "kharif", "rabi", "summer", "winter"}
 SOIL_KEYWORDS = {
     "black": ["black", "clay"],
     "loamy": ["loam"],
@@ -114,6 +115,18 @@ def _score_row(row, farm, personalized):
 
 def _recommend(farm, personalized):
     season = farm.season.strip().lower()
+    water = farm.waterAvailability.strip().lower()
+
+    if season not in VALID_SEASONS:
+        raise ValueError(
+            f"Unsupported season '{farm.season}'. "
+            f"Choose from: {', '.join(sorted(VALID_SEASONS))}."
+        )
+
+    if water not in LEVELS:
+        raise ValueError(
+            "Unsupported water availability. Choose low, moderate, or high."
+        )
     best = {}
     for row in ROWS:
         row_season = (row.get("season") or "").strip().lower()
@@ -157,12 +170,21 @@ def health():
 
 @router.post("/crops/recommendations")
 def general_recommendations(farm: FarmDetails):
-    return _recommend(farm, personalized=False)
+    try:
+        return _recommend(farm, personalized=False)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
 
 
 @router.post("/crops/personalized")
 def personalized_recommendations(farm: FarmDetails):
     if farm.ph is None:
-        return JSONResponse(status_code=400,
-                            content={"message": "Soil pH is required for personalized recommendations."})
-    return _recommend(farm, personalized=True)
+        return JSONResponse(
+            status_code=400,
+            content={"message": "Soil pH is required for personalized recommendations."},
+        )
+
+    try:
+        return _recommend(farm, personalized=True)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"message": str(exc)})
